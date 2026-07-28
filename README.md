@@ -51,6 +51,28 @@ The H1 is now the pixel lockup, revealed with a Colorburst-style arcade entrance
 
 `title-intro-preview.gif` is a frame-accurate replay of those keyframes. The intro replays every time the hero is shown (see `playTitle()`), and is disabled under `prefers-reduced-motion`.
 
+## Screens
+
+There are exactly three mutually exclusive screens: the landing page (`#start`), the game (`#test`), and the score/share screen (`#results`). `.screen:not(.is-active)` is explicitly removed from layout with `display:none!important`; this guard is necessary because the landing page's ID-based `display:grid` rule otherwise outranks the shared class rule and leaves a full hero viewport above the other two screens.
+
+The hero and the test are pinned panels — `body.locked` kills document scrolling while either is up, so there's no scrolling back to a previous screen. The score/share screen is the one screen that scrolls normally in portrait. On landscape desktop it becomes a contained two-panel layout that fits beneath the header in one viewport.
+
+The game screen includes a visible “Type it. All of it.” heading and supporting instructions above the passage. The typing card is intentionally capped at 860px wide and roughly half the viewport height, leaving a large wallpaper-ready field around it for future campaign branding. The card itself remains the scroll container, so reducing its size does not affect passage completion.
+
+Orientation is treated as a layout decision rather than only a breakpoint: landscape gets a wider, height-aware reading measure, while portrait makes the passage nearly full-bleed and sizes it from viewport width. The score/share screen follows the same split: side-by-side score and sharing panels in desktop landscape, compact stacked cards with touch-sized actions in mobile portrait.
+
+An earlier version used CSS Grid with `minmax(0,1fr)` rows and a `max-height:100%` on the card. That's spec-legal, but it depends on a percentage height resolving through an ancestor whose own size came from grid stretch — support for that isn't uniform, and when it fails the browser treats the height as unconstrained rather than 0, so the card silently grows to its full content height with nothing to stop it. That's exactly the "seeing half the page, can't scroll" report: the passage was overflowing past the visible screen with no indication anything was wrong, because on a wide-but-short external monitor there wasn't much headroom to begin with. `flex-grow` doesn't have that failure mode — it distributes an already-known pixel height directly, no percentage math involved, so there's no ambiguity for a browser to get wrong.
+
+**Height-based breakpoints, separate from the width ones.** The old mobile breakpoint was `@media (max-width:600px)`, which only ever fires on narrow phones — it does nothing for a wide desktop window that's simply short (an external monitor with a lot of browser chrome, a laptop lid at an angle, a phone rotated to landscape). Two new breakpoints key on height instead: `max-height:820px` compacts the header, footer, and gaps; `max-height:560px` goes further and drops the stat labels down to bare numbers. These stack independently of the width rules, so a short *and* narrow window gets both sets of savings.
+
+Fit was verified at 1920×1080, 1440×900, 1280×720, 390×844, 390×520 (phone with the keyboard up), and — the scenario that actually broke — a set of short external-monitor and landscape-phone sizes: 1920×950, 1920×860, 2560×1000, 3440×900 (ultrawide), 1680×820, and 844×390. All fit with the footer fully visible; the tightest ones just show fewer lines of the passage in the scrollable card, which is the intended degradation. See the four test-panel preview PNGs, including one at 1920×860 (external-monitor) and one at 844×390 (phone landscape).
+
+## Dev tools
+
+`DEV_TOOLS` at the top of the `<script>` controls a **DEV · Skip to results** button in the test footer, which jumps straight to the share screen without typing the whole passage. If you've started typing, it scores your real progress; if you haven't, it fakes a 3:14 / 66 WPM / 99% run so the card has plausible numbers.
+
+Set `DEV_TOOLS = false` before shipping, or append `?dev=0` to the URL to hide the button without editing the file.
+
 ## Changing things
 
 - **Copy** — the `RAW` constant at the top of the `<script>`.
@@ -65,4 +87,4 @@ The H1 is now the pixel lockup, revealed with a Colorburst-style arcade entrance
 
 ## Verification
 
-Logic was exercised headlessly through a full simulated run (31 assertions: scoring math, tier thresholds, quote forgiveness, restart, paste blocking, card bounds). The share cards were rasterized from the actual canvas draw calls using the real SimplyCricket metrics — see the two preview PNGs. The page's own CSS layout hasn't been eyeballed in a browser, so give it a once-over on desktop and phone.
+Logic is exercised headlessly through a full simulated run (scoring math, tier thresholds, quote forgiveness, restart, paste blocking, screen exclusivity, and card bounds). A live Chrome pass also measures and captures the game and score/share screens at 1440×900 landscape and 390×844 portrait. The game is exactly one viewport at both sizes; desktop results fit in one viewport, while portrait results intentionally scroll as a compact score card followed by the sharing tools.

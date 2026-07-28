@@ -84,10 +84,25 @@ button{font-family:inherit}
    the document itself can't scroll while either is up, so there's no scrolling
    "back" to a previous screen. Only the results page scrolls. */
 .screen{display:none;min-height:100dvh;flex-direction:column}
+/* Screen-specific layout rules use IDs below, so explicitly remove every
+   inactive panel from layout. Without this guard #start's display:grid wins
+   the cascade and leaves a full landing-page viewport above test/results. */
+.screen:not(.is-active){display:none!important}
 .screen.is-active{display:flex}
 body.locked{overflow:hidden;height:100dvh}
 #start.is-active{height:100dvh;overflow-y:auto}   /* auto = safety valve on very short windows */
-#test.is-active{height:100dvh;overflow:hidden}    /* hard lock: the passage scrolls, the page doesn't */
+/* The test panel is one unbroken flex column, header/footer `flex:0 0 auto`
+   and every row between them `flex:1 1 auto; min-height:0`. This is the only
+   version of "fill remaining space, never exceed it" that doesn't depend on a
+   percentage height resolving through an ancestor whose own size came from
+   stretch — that mechanism is spec-legal but not reliably implemented, and
+   silently computes to "no limit" when it fails, which is what let the
+   passage overflow past the visible screen without a scrollbar. flex-grow
+   distributes a already-known height directly, no percentage math involved. */
+#test.is-active{
+  display:flex; flex-direction:column;
+  height:100dvh; overflow:hidden;
+}
 
 /* ---------- START (hero over the ringside photo) ----------
    Three rows: title band, an open window that keeps the thumb + belt in the
@@ -131,11 +146,6 @@ body.locked{overflow:hidden;height:100dvh}
 }
 .namefield input::placeholder{color:var(--fg-dim);font-weight:500}
 .namefield input:focus{outline:3px solid var(--green-bright);outline-offset:2px;border-color:transparent}
-.rules{margin-top:24px;display:flex;flex-wrap:wrap;gap:9px;justify-content:center}
-.rule{
-  background:rgba(10,10,10,.72);color:var(--fg-2);border:1px solid var(--line-1);
-  border-radius:var(--radius-pill);padding:8px 17px;font-size:13.5px;font-weight:600;
-}
 
 /* ---------- arcade title reveal ----------
    The lockup zooms up in discrete sprite steps while a rainbow echo trail
@@ -146,37 +156,48 @@ body.locked{overflow:hidden;height:100dvh}
 }
 /* short viewports: shed the secondary copy so the photo's centre stays open */
 @media (max-height:760px){
-  .rules{display:none}
   #start .sub{font-size:15px;margin-bottom:16px}
   .titlewrap{max-height:21vh}
   .btn--hero{font-size:17px;padding:15px 34px;min-height:54px}
 }
-/* narrow phones: two pills keep the controls band short enough */
-@media (max-width:600px){
-  .rule:nth-of-type(3){display:none}
-  .rule{font-size:12.5px;padding:7px 14px}
-}
 
-/* ---------- landscape / desktop: side by side ----------
-   A wide, short viewport can't fit a title band, the photo's subject and a
-   controls band stacked without crowding the thumb. So the photo moves to
-   its own column and the copy sits beside it — the belt stays untouched. */
+/* ---------- landscape / desktop: photo bleeds, copy sits on the fade ----------
+   The photo runs edge to edge instead of living in its own column, and a
+   left-to-right ramp dissolves it into flat black behind the copy — the same
+   treatment as the campaign's "The Belt" layout.
+
+   Two numbers do the framing work, and both are deliberate:
+
+   left:12%  The photo box starts 12% in, so the leftmost sliver is always
+             true black (no ramp artefacts at the edge) AND, because `cover`
+             centres horizontally inside that box, the whole subject shifts
+             right. The fist lands at ~41% and the belt at ~56% of the
+             viewport at every aspect ratio from 4:3 to 21:9 — clear of the
+             copy column, which ends around 45%.
+
+   44% (y)   The source is a 0.78 portrait crop, so a wide frame keeps only a
+             horizontal band of it. Anchoring at 44% keeps the band centred on
+             the belt: verified to hold the thumb tip (0.33 of the image) and
+             the belt (0.48) from 1.4:1 through 2.4:1. Dead-centre (50%) loses
+             the thumb tip on ultrawide. */
 @media (min-width:900px) and (min-aspect-ratio:1/1){
   #start{
-    grid-template-columns:minmax(0,1fr) minmax(0,.86fr);
+    grid-template-columns:minmax(0,.86fr) minmax(0,1fr);
     grid-template-rows:auto auto;
     align-content:center; justify-items:stretch;
     gap:20px clamp(28px,4vw,72px);
     padding:clamp(24px,5vh,56px) clamp(28px,5vw,72px);
   }
   #start::before{
-    left:auto; right:0; width:47%;
-    background-size:cover; background-position:center center;
+    left:12%; right:0; width:auto;
+    background-size:cover; background-position:center 44%;
   }
   #start::after{
     background:linear-gradient(to right,
-      rgba(10,10,10,1) 0%, rgba(10,10,10,.99) 36%, rgba(10,10,10,.74) 47%,
-      rgba(10,10,10,.24) 58%, rgba(10,10,10,0) 68%, rgba(10,10,10,0) 100%);
+      rgba(10,10,10,1) 0%,   rgba(10,10,10,1) 20%,
+      rgba(10,10,10,.93) 30%, rgba(10,10,10,.62) 40%,
+      rgba(10,10,10,.26) 50%, rgba(10,10,10,.06) 60%,
+      rgba(10,10,10,0) 68%,  rgba(10,10,10,0) 100%);
   }
   .hero-top,.hero-bottom{grid-column:1;text-align:left;padding:0;max-width:none}
   .hero-top{grid-row:1;align-self:end}
@@ -185,7 +206,6 @@ body.locked{overflow:hidden;height:100dvh}
   .titlewrap{margin:0;width:min(100%,620px);max-height:38vh}
   #start .sub{margin:0 0 22px;max-width:440px}
   .namefield{align-items:flex-start;margin-left:0;margin-right:0}
-  .rules{justify-content:flex-start}
 }
 .titleart,.echo{
   position:absolute;inset:4%;      /* headroom so the trail isn't clipped */
@@ -277,7 +297,7 @@ body.locked{overflow:hidden;height:100dvh}
 
 /* ---------- TEST ---------- */
 #test{background:var(--crkt-black)}
-.stickyhead{position:sticky;top:0;z-index:20;background:var(--crkt-black)}
+.stickyhead{position:sticky;top:0;z-index:20;background:var(--crkt-black);flex:0 0 auto}
 .topbar{
   background:var(--crkt-black);
   border-bottom:1px solid var(--line-1);
@@ -295,20 +315,41 @@ body.locked{overflow:hidden;height:100dvh}
 .progress{height:6px;background:rgba(255,255,255,.14)}
 .progress i{display:block;height:100%;width:0;background:var(--crkt-green);transition:width 120ms linear}
 
-/* the passage area absorbs whatever height is left, so the panel always fits */
-.testwrap{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;padding:24px 20px 28px;width:100%}
-.testwrap .lead{max-width:900px;width:100%;margin:0 0 14px;flex:none}
-.testwrap .lead h2{font-size:clamp(24px,3.4vw,34px)}
-.testwrap .lead p{margin:8px 0 0;color:var(--fg-3);font-size:15px}
+.gameintro{
+  flex:0 0 auto;
+  width:min(100% - 32px,860px);
+  margin:clamp(16px,3vh,30px) auto 0;
+  text-align:center;
+}
+.gameintro h2{font-size:clamp(28px,3.2vw,44px)}
+.gameintro p{
+  margin:8px 0 0;color:var(--fg-3);
+  font-size:clamp(14px,1.4vw,17px);font-weight:500;
+}
 
-.padwrap{position:relative;width:100%;max-width:900px;flex:1 1 auto;min-height:0;display:flex}
+/* passage row fills whatever height remains, footer row is fixed — every level
+   keeps min-height:0, while the card is deliberately constrained to expose
+   room for the page wallpaper/branding around it. */
+.testwrap{
+  flex:1 1 auto; min-height:0;
+  display:flex; flex-direction:column; align-items:center;justify-content:center;gap:14px;
+  width:100%; max-width:1040px; margin:0 auto;
+  padding:clamp(10px,2vh,22px) clamp(16px,3vw,28px) clamp(10px,2vh,24px);
+}
+.padwrap{
+  flex:0 1 auto; min-height:0;
+  position:relative; width:min(100%,860px);height:min(52dvh,520px);
+  display:flex; flex-direction:column;   /* lets .pad's flex-grow govern its height */
+}
 .pad{
-  position:relative;   /* offsetParent for the scroll-follow */
-  flex:1 1 auto;min-height:0;width:100%;
+  flex:1 1 auto; min-height:0;   /* fills padwrap exactly — no percentage-height involved */
+  position:relative;             /* offsetParent for the scroll-follow */
+  width:100%;
   background:var(--surface-1);border-radius:var(--radius-lg);
   border:1px solid var(--line-1);
-  padding:30px 32px;overflow-y:auto;overflow-x:hidden;
-  font-size:clamp(19px,2.3vw,24px);line-height:1.75;font-weight:500;color:var(--fg-dim);
+  padding:clamp(14px,2.4vh,32px) clamp(18px,2.6vw,36px);
+  overflow-y:auto;overflow-x:hidden;
+  font-size:clamp(16px,1.7vw,26px);line-height:1.62;font-weight:500;color:var(--fg-dim);
   cursor:text;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;
 }
 .pad::-webkit-scrollbar{width:8px}
@@ -320,7 +361,7 @@ body.locked{overflow:hidden;height:100dvh}
 .pad.blurred c.cur{background:transparent;box-shadow:none}
 #capture{
   position:absolute;inset:0;width:100%;height:100%;opacity:0;resize:none;border:0;
-  padding:30px 32px;font-family:var(--font);font-size:20px;color:transparent;background:transparent;
+  padding:24px;font-family:var(--font);font-size:20px;color:transparent;background:transparent;
   caret-color:transparent;z-index:2;border-radius:var(--radius-lg);
 }
 #capture:focus{outline:none}
@@ -330,9 +371,165 @@ body.locked{overflow:hidden;height:100dvh}
   z-index:3;pointer-events:none;border-radius:var(--radius-lg);
   background:rgba(10,10,10,.74);
 }
-.focusnote span{background:var(--crkt-green);color:var(--crkt-black);border-radius:var(--radius-pill);padding:12px 24px;font-weight:600;font-size:16px}
+.focusnote span{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  background:var(--crkt-green);color:var(--crkt-black);
+  border-radius:var(--radius-lg);padding:18px 30px;text-align:center;max-width:88%;
+}
+.focusnote b{font-size:clamp(17px,2vw,21px);font-weight:900;letter-spacing:-.01em}
+.focusnote i{font-style:normal;font-size:clamp(12.5px,1.3vw,14.5px);font-weight:600;opacity:.78}
 .padwrap:focus-within .focusnote{display:none}
-.testfoot{display:flex;gap:12px;justify-content:center;margin-top:18px;flex-wrap:wrap;flex:none}
+.testfoot{flex:0 0 auto;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:center}
+.testfoot .btn--sm{font-size:14px;padding:10px 20px;min-height:42px}
+.lbl-sm{display:none}
+
+/* ---------- help: circular ? in the test menu bar ----------
+   Same ghost treatment as its neighbours, forced square so the pill radius
+   resolves to a true circle at every breakpoint. */
+.btn--icon{
+  padding:0; width:42px; min-width:42px; height:42px; min-height:42px;
+  font-size:19px; font-weight:900; line-height:1; flex:none;
+}
+.btn--icon.is-open{background:var(--crkt-white);color:var(--crkt-black);box-shadow:inset 0 0 0 2px var(--crkt-white)}
+
+/* ---------- rules overlay (styles) ---------- */
+.overlay{
+  position:fixed; inset:0; z-index:60; display:none;
+  align-items:center; justify-content:center; padding:24px;
+  background:rgba(10,10,10,.82); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+}
+.overlay.on{display:flex; animation:ovFade 180ms var(--ease-out) both}
+@keyframes ovFade{from{opacity:0}to{opacity:1}}
+.sheet{
+  position:relative; width:min(100%,520px); max-height:86dvh; overflow-y:auto;
+  background:var(--surface-1); border:1px solid var(--line-1);
+  border-radius:var(--radius-lg); padding:32px 30px 30px;
+  box-shadow:0 24px 60px rgba(0,0,0,.6);
+  animation:ovRise 240ms var(--ease-out) both;
+}
+@keyframes ovRise{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+.sheet h2{font-size:clamp(24px,4vw,30px);margin:0 0 6px}
+.sheet .eyebrow{margin-bottom:10px}
+.sheet ul{list-style:none;margin:20px 0 0;padding:0;display:flex;flex-direction:column;gap:12px}
+.sheet li{
+  display:flex; gap:14px; align-items:flex-start;
+  background:var(--surface-2); border:1px solid var(--line-1);
+  border-radius:var(--radius-sm); padding:14px 16px;
+  font-size:15px; font-weight:600; color:var(--fg-2); line-height:1.4;
+}
+.sheet li b{
+  flex:none; width:24px; height:24px; border-radius:var(--radius-pill);
+  background:var(--crkt-green); color:var(--crkt-black);
+  display:grid; place-items:center; font-size:13px; font-weight:900;
+}
+.sheet .close{
+  position:absolute; top:14px; right:14px;
+  width:38px; height:38px; min-height:38px; padding:0;
+  border:none; border-radius:var(--radius-pill); cursor:pointer;
+  background:transparent; color:var(--fg-3); font-size:22px; font-weight:700; line-height:1;
+  display:grid; place-items:center;
+  transition:background 160ms var(--ease-out), color 160ms var(--ease-out);
+}
+.sheet .close:hover{background:var(--line-1);color:var(--fg-1)}
+.sheet .close:focus-visible{outline:3px solid var(--crkt-green);outline-offset:2px}
+.sheet .btn{width:100%;margin-top:22px}
+@media (max-width:600px){
+  .sheet{padding:28px 20px 22px}
+  .sheet li{font-size:14px;padding:12px 14px}
+}
+@media (max-height:560px){
+  .overlay{padding:14px}
+  .sheet{padding:22px 20px 18px}
+  .sheet ul{gap:8px;margin-top:14px}
+  .sheet li{padding:10px 12px;font-size:13.5px}
+  .sheet .btn{margin-top:14px}
+}
+@media (prefers-reduced-motion:reduce){
+  .overlay.on,.sheet{animation:none}
+}
+/* The game has two deliberate compositions. Landscape uses the available
+   width for a comfortable long-form measure; portrait makes the passage
+   nearly full-bleed and sizes type from viewport width. */
+@media (orientation:landscape) and (min-width:700px){
+  .testwrap{
+    max-width:1240px;
+    padding-left:clamp(20px,4vw,56px);
+    padding-right:clamp(20px,4vw,56px);
+  }
+  .pad{
+    font-size:clamp(17px,min(1.5vw,2.7vh),24px);
+    line-height:1.58;
+  }
+}
+@media (orientation:portrait){
+  .gameintro{
+    width:min(100% - 28px,680px);
+    margin-top:clamp(12px,2.5vh,22px);
+  }
+  .gameintro h2{font-size:clamp(25px,7vw,36px)}
+  .gameintro p{font-size:clamp(13px,3.8vw,16px);margin-top:5px}
+  .testwrap{
+    max-width:760px;
+    gap:10px;
+    padding:12px clamp(10px,3.5vw,24px) max(12px,env(safe-area-inset-bottom));
+  }
+  .padwrap{width:min(100%,680px);height:min(50dvh,460px)}
+  .pad{
+    border-radius:clamp(20px,7vw,var(--radius-lg));
+    padding:clamp(18px,4.8vw,30px);
+    font-size:clamp(17px,4.65vw,22px);
+    line-height:1.55;
+  }
+}
+/* phones: the header and footer have to shed weight to keep the passage big */
+@media (max-width:600px){
+  .lbl-lg{display:none}
+  .lbl-sm{display:inline}
+  .testfoot{gap:8px}
+  .testfoot .btn--sm{font-size:13px;padding:9px 15px;min-height:38px}
+  .btn--dev{font-size:12px;padding:9px 14px;min-height:38px}
+  .topbar{padding:10px 14px;gap:10px}
+  .topbar .logo{height:18px}
+  .hud{gap:6px;flex-wrap:nowrap}
+  .stat{padding:5px 10px;gap:5px}
+  .stat b{font-size:15px}
+  .stat span{font-size:9px;letter-spacing:.08em}
+}
+/* short viewports — external/laptop monitors with real browser chrome eating
+   into the window, or a phone in landscape. Keyed on height, not width, so it
+   catches a wide-but-short window that the max-width rule above never would.
+   The chrome shrinks in two steps so the passage keeps as much room as
+   possible; .pad's own line-height/padding also flex down via the vh-based
+   clamp()s above, so this mainly targets the header, gaps, and footer. */
+@media (max-height:820px){
+  .lbl-lg{display:none}
+  .lbl-sm{display:inline}
+  .topbar{padding:8px 16px}
+  .topbar .logo{height:18px}
+  .hud{gap:6px}
+  .stat{padding:5px 12px;gap:5px}
+  .stat b{font-size:15px}
+  .stat span{font-size:9px;letter-spacing:.08em}
+  .testwrap{gap:8px}
+  .testfoot{gap:6px}
+  .testfoot .btn--sm{font-size:12.5px;padding:8px 14px;min-height:34px}
+  .btn--dev{font-size:11.5px;padding:8px 12px;min-height:34px}
+}
+@media (max-height:560px){
+  .topbar{padding:6px 14px}
+  .topbar .logo{height:16px}
+  .stat{padding:4px 10px}
+  .stat b{font-size:13px}
+  .stat span{display:none}     /* WPM/ACC/TIME labels — keep just the numbers */
+  .testwrap{gap:6px;padding-top:8px;padding-bottom:8px}
+  .gameintro{margin-top:7px}
+  .gameintro h2{font-size:21px}
+  .gameintro p{display:none}
+  .padwrap{height:min(48dvh,260px)}
+  .pad{padding:10px 16px}
+  .focusnote span{padding:12px 20px}
+  .focusnote i{display:none}   /* keep the headline instruction, drop the subline */
+}
 /* development only — remove by setting DEV_TOOLS to false */
 .btn--dev{
   background:transparent;color:var(--crkt-citrus);
@@ -342,10 +539,16 @@ body.locked{overflow:hidden;height:100dvh}
 .btn--dev:hover{background:var(--crkt-citrus);color:var(--crkt-black)}
 .btn--dev[hidden]{display:none}
 
-/* ---------- RESULTS ---------- */
+/* ---------- SHARE / RESULTS ----------
+   This is the third screen: score first, sharing tools second. It scrolls in
+   portrait, while a landscape desktop keeps both panels inside one viewport. */
 #results{background:var(--crkt-black)}
-.res{width:100%;max-width:1120px;margin:0 auto;padding:34px 20px 64px;display:grid;gap:36px;grid-template-columns:1fr}
-@media(min-width:940px){.res{grid-template-columns:1fr 400px;align-items:start;gap:48px}}
+#results>.topbar{position:sticky;top:0;z-index:20;flex:0 0 auto}
+.res{
+  width:100%;max-width:1180px;margin:0 auto;padding:30px 20px 56px;
+  display:grid;gap:30px;grid-template-columns:minmax(0,1fr);
+}
+.resultsummary{min-width:0}
 .scorecard{
   background:var(--crkt-green);border-radius:var(--radius-xl);padding:clamp(28px,4vw,48px);
   text-align:center;animation:rise 420ms var(--ease-spring) both;
@@ -391,6 +594,85 @@ body.locked{overflow:hidden;height:100dvh}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .retrybar{grid-column:1/-1;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;padding-top:4px}
 .footer{text-align:center;padding:26px 20px 34px;color:var(--fg-dim);font-size:12px}
+
+/* Portrait is intentionally a vertical story: a compact score reveal followed
+   by a large, touch-friendly share card. Scrolling is expected on this screen. */
+@media (orientation:portrait){
+  .res{max-width:760px;padding:18px clamp(12px,4vw,24px) 42px;gap:20px}
+  .scorecard{padding:clamp(22px,6vw,34px)}
+  .bignum{font-size:clamp(76px,25vw,132px);margin-top:8px}
+  .tiername{font-size:clamp(24px,7.5vw,36px);margin-top:16px}
+  .tierline{font-size:15px}
+  .statgrid{margin-top:20px;gap:8px}
+  .statbox{padding:14px 7px}
+  .statbox b{font-size:clamp(22px,7vw,30px)}
+  .breakdown{margin-top:18px;padding:12px 15px}
+  .breakdown div{font-size:12.5px;padding:5px 0}
+  .retrybar{margin-top:16px!important}
+  .retrybar .btn{min-height:48px;padding:12px 22px;font-size:15px}
+  .sharepanel{padding:18px}
+  .sharepanel .hint{margin-bottom:14px}
+  .ratio{margin-bottom:14px}
+  .preview{padding:12px}
+  .preview canvas{max-height:min(62dvh,560px)}
+}
+
+/* Landscape desktop is a true single-screen composition. The outer screen is
+   fixed; the two cards scale within the remaining height under the header. */
+@media (orientation:landscape) and (min-width:940px){
+  #results.is-active{height:100dvh;min-height:0;overflow:hidden}
+  .res{
+    flex:1 1 auto;min-height:0;max-width:1280px;
+    padding:clamp(14px,2.2vh,22px) clamp(22px,3vw,42px);
+    grid-template-columns:minmax(0,1fr) minmax(360px,430px);
+    align-items:stretch;gap:clamp(20px,2.6vw,34px);
+  }
+  .resultsummary{min-height:0;display:flex;flex-direction:column}
+  .scorecard{
+    flex:1 1 auto;min-height:0;
+    display:flex;flex-direction:column;justify-content:center;
+    padding:clamp(20px,3vh,34px) clamp(26px,3.2vw,42px);
+  }
+  .bignum{font-size:clamp(82px,14vh,132px);margin:8px 0 2px}
+  .tiername{font-size:clamp(28px,4.2vh,40px);margin:14px 0 4px}
+  .tierline{font-size:14px}
+  .statgrid{margin-top:18px}
+  .statbox{padding:13px 8px}
+  .statbox b{font-size:clamp(24px,4vh,32px)}
+  .breakdown{margin-top:16px;padding:10px 16px}
+  .breakdown div{padding:4px 0;font-size:12.5px}
+  .retrybar{margin-top:14px!important;padding:0}
+  .retrybar .btn{min-height:44px;padding:10px 22px;font-size:15px}
+  .sharepanel{
+    min-height:0;padding:18px;
+    display:flex;flex-direction:column;
+  }
+  .sharepanel h3{font-size:20px}
+  .sharepanel .hint{font-size:12.5px;margin:2px 0 10px}
+  .ratio{margin-bottom:10px}
+  .ratio button{padding:8px 6px;font-size:13px}
+  .preview{min-height:0;padding:10px}
+  .preview canvas{max-height:min(36dvh,340px)}
+  .sharebtns{gap:8px;margin-top:10px}
+  .sharebtns .row{gap:8px}
+  .sharebtns .btn{min-height:40px;padding:9px 14px;font-size:13px}
+  .socialnote{font-size:10.5px;line-height:1.35;margin-top:8px}
+  .footer{display:none}
+}
+
+/* Short landscape windows get one final density pass so browser chrome never
+   pushes actions below the fold. */
+@media (orientation:landscape) and (min-width:940px) and (max-height:720px){
+  .res{padding-top:10px;padding-bottom:10px}
+  .scorecard{padding-top:16px;padding-bottom:16px}
+  .bignum{font-size:76px}
+  .tiername{font-size:27px;margin-top:10px}
+  .tierline{display:none}
+  .statgrid{margin-top:12px}
+  .breakdown{margin-top:12px}
+  .sharepanel .hint,.socialnote{display:none}
+  .preview canvas{max-height:31dvh}
+}
 </style>
 </head>
 <body>
@@ -426,11 +708,6 @@ body.locked{overflow:hidden;height:100dvh}
       <input id="pname" type="text" maxlength="18" placeholder="Your name" autocomplete="off" spellcheck="false">
     </div>
     <button class="btn btn--primary btn--hero" id="startBtn">Start the match</button>
-    <div class="rules">
-      <span class="rule">Timer starts on your first keystroke</span>
-      <span class="rule">Backspace to fix &mdash; misses still count</span>
-      <span class="rule">Finish the whole speech to score</span>
-    </div>
   </div>
 </section>
 
@@ -459,20 +736,31 @@ body.locked{overflow:hidden;height:100dvh}
     </div>
     <div class="progress"><i id="progBar"></i></div>
   </div>
+  <div class="gameintro">
+    <h2>Type it. All of it.</h2>
+    <p>Tap the card and start typing. The clock stops when you land the last character.</p>
+  </div>
   <div class="testwrap">
-    <div class="lead">
-      <h2>Type it. All of it.</h2>
-      <p>Tap the card and start typing. The clock stops when you land the last character.</p>
-    </div>
     <div class="padwrap">
       <div class="pad" id="pad" aria-hidden="true"></div>
       <textarea id="capture" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Typing input"></textarea>
-      <div class="focusnote"><span>Click here to start typing</span></div>
+      <div class="focusnote">
+        <span>
+          <b>Tap to start typing</b>
+          <i>The clock starts on your first keystroke</i>
+        </span>
+      </div>
     </div>
     <div class="testfoot">
       <button class="btn btn--ghost btn--sm" id="restartBtn">Restart</button>
-      <button class="btn btn--ghost btn--sm" id="quitBtn">Back to start</button>
-      <button class="btn btn--dev" id="devSkipBtn" hidden>DEV · Skip to results</button>
+      <button class="btn btn--ghost btn--sm" id="quitBtn">
+        <span class="lbl-lg">Back to start</span><span class="lbl-sm">Home</span>
+      </button>
+      <button class="btn btn--ghost btn--sm btn--icon" id="helpBtn"
+              aria-label="How to play" aria-haspopup="dialog" aria-expanded="false">?</button>
+      <button class="btn btn--dev" id="devSkipBtn" hidden>
+        <span class="lbl-lg">DEV · Skip to results</span><span class="lbl-sm">DEV · Skip</span>
+      </button>
     </div>
   </div>
 </section>
@@ -496,7 +784,7 @@ body.locked{overflow:hidden;height:100dvh}
     <div class="hud"><div class="stat"><b id="hudTier">&mdash;</b></div></div>
   </div>
   <div class="res">
-    <div>
+    <div class="resultsummary">
       <div class="scorecard">
         <p class="tier">Cricket Thumb-disputed Championship</p>
         <div class="bignum" id="rScore">0</div>
@@ -542,6 +830,21 @@ body.locked{overflow:hidden;height:100dvh}
   </div>
   <p class="footer">Cricket 5G. Something to smile about. &nbsp;|&nbsp; Phase 1 &mdash; scores are not saved yet.</p>
 </section>
+
+<!-- ============ RULES OVERLAY ============ -->
+<div class="overlay" id="rulesOverlay" role="dialog" aria-modal="true" aria-labelledby="rulesTitle" hidden>
+  <div class="sheet" role="document">
+    <button class="close" id="rulesClose" aria-label="Close">&times;</button>
+    <p class="eyebrow">How to play</p>
+    <h2 id="rulesTitle">Three rules. That's it.</h2>
+    <ul>
+      <li><b>1</b><span>The timer starts on your first keystroke &mdash; not before.</span></li>
+      <li><b>2</b><span>Backspace to fix a slip, but every miss still counts against your accuracy.</span></li>
+      <li><b>3</b><span>Finish the whole speech to score. Stop early and there's no belt.</span></li>
+    </ul>
+    <button class="btn btn--primary" id="rulesGo">Got it</button>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -608,6 +911,13 @@ function buildPad(){
 }
 
 function setScreen(id){
+  /* never let the rules sheet survive a screen change */
+  const ov = $("rulesOverlay");
+  if (ov && ov.classList.contains("on")){
+    ov.classList.remove("on"); ov.hidden = true;
+    const h = $("helpBtn");
+    if (h){ h.setAttribute("aria-expanded","false"); h.classList.remove("is-open"); }
+  }
   document.querySelectorAll(".screen").forEach(s => s.classList.toggle("is-active", s.id === id));
   /* hero and test are pinned panels; only the results page scrolls */
   document.body.classList.toggle("locked", id !== "results");
@@ -801,54 +1111,84 @@ function showResults(r){
 /* =========================================================================
    SHARE CARD
    ========================================================================= */
-const LOGO_BLACK_SVG = '<svg width=\"101px\" height=\"23px\" viewBox=\"0 0 101 23\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">\n    \n    <g id=\"20122020\" stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\n        <g id=\"Retarget_300x250\" transform=\"translate(-19.000000, -20.000000)\">\n            <g id=\"Copy\" transform=\"translate(17.000000, 12.000000)\">\n                <g id=\"Group-15\" transform=\"translate(2.000000, 8.000000)\">\n                    <path d=\"M99.9849029,6.50065058 C99.9385655,6.39172176 99.793993,6.38064425 99.6914329,6.38064425 L99.3374155,6.38064425 L99.3374155,6.80712829 L99.6772228,6.80712829 C99.8471265,6.80712829 100.00282,6.76158742 100.00282,6.56034604 C100.00282,6.54311436 99.9923169,6.51480518 99.9849029,6.50065058 L99.9849029,6.50065058 Z M100.023826,7.67055845 C99.9774889,7.59978548 99.9811959,7.46623998 99.9774889,7.38500492 C99.9676036,7.13822268 99.9175593,7.05391054 99.6525096,7.05391054 L99.3374155,7.05391054 L99.3374155,7.67055845 L99.0723658,7.67055845 L99.0723658,6.13078492 L99.7371525,6.13078492 C100.009616,6.13078492 100.26787,6.23294416 100.26787,6.54988395 C100.26787,6.74004783 100.172106,6.87790125 99.9811959,6.92344212 L99.9811959,6.93082712 C100.19373,6.99052258 100.228946,7.11360599 100.239449,7.31484738 C100.243156,7.41700661 100.235742,7.5788613 100.288876,7.67055845 L100.023826,7.67055845 Z M99.6488026,5.81015262 C99.0476525,5.81015262 98.580572,6.29633211 98.580572,6.88836334 C98.580572,7.48039457 99.0507417,7.96657406 99.6488026,7.96657406 C100.246863,7.96657406 100.717033,7.48039457 100.717033,6.88836334 C100.717033,6.29633211 100.246863,5.81015262 99.6488026,5.81015262 L99.6488026,5.81015262 Z M99.6525096,8.23428049 C98.9061691,8.23428049 98.2976051,7.63547967 98.2976051,6.88836334 C98.2976051,6.14124701 98.9061691,5.54244619 99.6525096,5.54244619 C100.39885,5.54244619 101,6.1480166 101,6.88836334 C101,7.62809467 100.395143,8.23428049 99.6525096,8.23428049 L99.6525096,8.23428049 Z M59.2599235,0.00307708538 L54.3710231,0.00307708538 L54.3710231,15.5269729 L59.2599235,10.6848713 L59.2599235,0.00307708538 Z M59.7683988,17.0581305 L64.3681542,21.8860775 L71.2730387,21.8860775 L63.2424652,13.6050253 L59.7683988,17.0581305 Z M81.3566662,11.8270854 C81.2355712,10.9895027 80.2272702,9.0564777 77.6935434,9.0564777 C75.1604343,9.0564777 74.1422481,10.9975032 74.0279492,11.8270854 L81.3566662,11.8270854 Z M73.9723444,15.3349627 C74.1546047,17.1338268 75.8381954,18.401586 77.7522373,18.401586 C79.1961095,18.401586 80.0277107,17.7867844 80.576345,17.032283 L85.6215568,17.032283 C84.1770668,20.1266001 81.4104175,22.4147208 77.7522373,22.4147208 C73.068457,22.4147208 69.0914758,18.6292903 69.0914758,13.7865734 C69.0914758,9.23864116 72.6854014,5.04272753 77.6645053,5.04272753 C80.1685762,5.04272753 82.3192476,6.01077859 83.850234,7.62440217 C85.5251751,9.41218877 86.2529806,11.5150689 86.2529806,13.7256471 C86.2529806,14.2579828 86.2282673,14.7730869 86.1572167,15.3349627 L73.9723444,15.3349627 Z M53.014883,15.6949817 C52.1307662,19.3924075 48.861202,22.4147208 44.4424713,22.4147208 C39.4930234,22.4147208 35.6933598,18.5400549 35.6933598,13.6991841 C35.6933598,8.91616261 39.4337116,5.04272753 44.3244655,5.04272753 C48.6554641,5.04272753 52.1604221,7.88903151 52.9852271,11.8806267 L48.036397,11.8806267 C47.5062976,10.7642601 46.5344487,9.59065973 44.5017831,9.59065973 C43.3526166,9.5321951 42.3807677,9.9716029 41.6733507,10.7353355 C40.9955895,11.4984527 40.612534,12.5545084 40.612534,13.7274933 C40.612534,16.1054649 42.174412,17.8667886 44.5017831,17.8667886 C46.5344487,17.8667886 47.5062976,16.6925728 48.036397,15.6949817 L53.014883,15.6949817 Z M92.7161156,9.68974188 L97.3918642,9.68974188 L97.3918642,5.60829582 L92.7142621,5.60829582 L92.7142621,0.00184625123 L87.827833,0.00184625123 L87.8247438,14.6327718 C87.8247438,19.822584 90.496865,21.8860775 96.1741184,21.8860775 L96.5738553,21.8860775 L96.5738553,17.5203088 L96.3965377,17.5203088 C93.8937024,17.5203088 92.7142621,16.6101069 92.7142621,14.3213708 L92.7161156,9.68974188 Z M18.8315033,5.60829582 L23.426316,5.60829582 L23.426316,7.98319032 C23.8977214,7.10252849 24.7521823,5.60644957 27.5793791,5.60644957 L27.5793791,10.3506998 L27.4032971,10.3506998 C24.8992262,10.3506998 23.7204037,11.2609017 23.7204037,13.5496378 L23.7204037,21.8860775 L18.8315033,21.8860775 L18.8315033,5.60829582 Z M17.3209053,15.6949817 C16.4380242,19.3924075 13.1672243,22.4147208 8.74849365,22.4147208 C3.79966356,22.4147208 0,18.5400549 0,13.6991841 C0,8.91616261 3.74096957,5.04334295 8.63110567,5.04334295 C12.9614865,5.04334295 16.4676801,7.88903151 17.2918673,11.8806267 L12.3430372,11.8806267 C11.8123199,10.7648755 10.840471,9.59065973 8.80780547,9.59065973 C7.6580211,9.53281052 6.6861722,9.97221831 5.97937299,10.7359509 C5.30284753,11.4984527 4.91917419,12.5545084 4.91917419,13.7274933 C4.91917419,16.1054649 6.48043432,17.8667886 8.80780547,17.8667886 C10.840471,17.8667886 11.8123199,16.6925728 12.3430372,15.6949817 L17.3209053,15.6949817 Z M29.4198991,21.8866929 L34.3063282,21.8866929 L34.3063282,5.60829582 L29.4198991,5.60829582 L29.4198991,21.8866929 Z M29.4198991,4.11467858 L34.3063282,4.11467858 L34.3063282,0 L29.4198991,0 L29.4198991,4.11467858 Z M0.606710506,27.4568329 L2.49418566,27.4568329 L3.74591222,32.4232487 L5.0588041,27.6956147 L6.44707142,27.6956147 L7.78405872,32.4232487 L9.01168986,27.4568329 L10.8942224,27.4568329 L8.69474232,34.7735265 L7.0846735,34.7735265 L5.73347607,30.1634372 L4.42120202,34.7735265 L2.80619055,34.7735265 L0.606710506,27.4568329 Z M50.3890993,29.4286292 C50.375507,29.0421473 50.1747117,28.6427416 49.4926258,28.6427416 C48.9038324,28.6427416 48.6233369,29.0156843 48.6233369,29.3757033 C48.6363114,29.8428049 49.1719712,30.0957413 49.8676495,30.2951364 C51.0452363,30.6145379 52.31488,30.9616331 52.3290901,32.5340238 C52.3556568,34.0399494 51.0847775,35 49.5457593,35 C48.4089494,35 46.8699312,34.4128921 46.7364796,32.6411063 L48.4898853,32.6411063 C48.5559933,33.426994 49.238697,33.586387 49.5729439,33.586387 C50.1215782,33.586387 50.5892766,33.2275988 50.5750665,32.7334189 C50.5750665,32.1069243 50.0282857,31.9346075 48.6764704,31.4681214 C47.6860866,31.1610283 46.8835235,30.6145379 46.8699312,29.5621747 C46.8699312,28.1227142 48.087677,27.2303594 49.5062181,27.2303594 C50.4953663,27.2303594 51.9682765,27.6697672 52.1153204,29.4286292 L50.3890993,29.4286292 Z M43.7171372,29.4286292 C43.7035449,29.0421473 43.5033675,28.6427416 42.8206637,28.6427416 C42.233106,28.6427416 41.9519927,29.0156843 41.9519927,29.3757033 C41.9643493,29.8428049 42.5000092,30.0957413 43.1950696,30.2951364 C44.373892,30.6145379 45.6435357,30.9616331 45.657128,32.5340238 C45.6836948,34.0399494 44.4134332,35 42.8750329,35 C41.7369873,35 40.1985869,34.4128921 40.0645175,32.6411063 L41.8179232,32.6411063 C41.8840312,33.426994 42.5673528,33.586387 42.9015996,33.586387 C43.4496161,33.586387 43.9179324,33.2275988 43.9043401,32.7334189 C43.9043401,32.1069243 43.3569414,31.9346075 42.0045083,31.4681214 C41.0147423,31.1610283 40.2121792,30.6145379 40.1985869,29.5621747 C40.1985869,28.1227142 41.4163328,27.2303594 42.834256,27.2303594 C43.824022,27.2303594 45.2963144,27.6697672 45.4439761,29.4286292 L43.7171372,29.4286292 Z M28.2274843,34.7735265 L29.9796544,34.7735265 L29.9796544,24.9108524 L28.2274843,24.9108524 L28.2274843,34.7735265 Z M37.2200214,30.3622169 C37.1532956,29.6686419 36.4174583,28.6956675 35.1329867,28.7085912 C33.8343049,28.7085912 33.1262701,29.6415635 33.0589264,30.3622169 L37.2200214,30.3622169 Z M33.0323597,31.6945949 C33.1126778,32.8681952 34.1561951,33.5199219 35.1589356,33.5069982 C36.0164857,33.5069982 36.591069,33.1211317 36.9253158,32.5198692 L38.7324729,32.5198692 C38.3840159,33.334066 37.8625661,33.9470214 37.247206,34.3605817 C36.631228,34.7870657 35.9083652,35 35.146579,35 C32.884698,35 31.2659795,33.1734421 31.2659795,31.1345653 C31.2659795,29.0556865 32.8982903,27.2303594 35.1193944,27.2303594 C36.2160453,27.2303594 37.1798624,27.6426888 37.8625661,28.3491876 C38.7584218,29.2692362 39.0932864,30.4145274 38.9468604,31.6945949 L33.0323597,31.6945949 Z M25.2118489,30.3622169 C25.1451231,29.6686419 24.4092858,28.6956675 23.1248142,28.7085912 C21.8261324,28.7085912 21.1180976,29.6415635 21.0507539,30.3622169 L25.2118489,30.3622169 Z M21.0235694,31.6945949 C21.1038874,32.8681952 22.1480226,33.5199219 23.1513809,33.5069982 C24.0070775,33.5069982 24.5828965,33.1211317 24.918379,32.5198692 L26.7236825,32.5198692 C26.3758434,33.334066 25.8550115,33.9470214 25.2390335,34.3605817 C24.6230555,34.7870657 23.9008105,35 23.1377887,35 C20.8765255,35 19.2571892,33.1734421 19.2571892,31.1345653 C19.2571892,29.0556865 20.8894999,27.2303594 23.1106041,27.2303594 C24.2084906,27.2303594 25.1716899,27.6426888 25.8550115,28.3491876 C26.7502493,29.2692362 27.0851139,30.4145274 26.93807,31.6945949 L21.0235694,31.6945949 Z M15.1720875,27.4568329 L16.8315828,27.4568329 L16.8315828,28.4162681 C17.1528552,27.7626952 17.754623,27.2426677 18.865484,27.2303594 L18.865484,28.988606 L18.7845481,28.988606 C17.5538278,28.988606 16.9254932,29.5621747 16.9254932,30.8274722 L16.9254932,34.7735265 L15.1720875,34.7735265 L15.1720875,27.4568329 Z M11.7703074,34.7735265 L13.5230953,34.7735265 L13.5230953,27.4574483 L11.7703074,27.4574483 L11.7703074,34.7735265 Z M11.7703074,26.4697039 L13.5230953,26.4697039 L13.5230953,24.9108524 L11.7703074,24.9108524 L11.7703074,26.4697039 Z\" id=\"Fill-11\" fill=\"#000000\"></path>\n                    <polygon id=\"Fill-13\" fill=\"#0A0A0A\" points=\"64.3309253 6.125 54.4521739 15.9350888 54.4521739 22.75 71.1391304 6.12621706\"></polygon>\n                </g>\n            </g>\n        </g>\n    </g>\n</svg>';
-let logoImg = null;
-function loadLogo(){
-  if (logoImg) return Promise.resolve(logoImg);
-  return new Promise(res => {
-    let done = false;
-    const settle = v => { if (!done){ done = true; res(v); } };
-    const img = new Image();
-    img.onload = () => { logoImg = img; settle(img); };
-    img.onerror = () => settle(null);
-    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(LOGO_BLACK_SVG);
-    setTimeout(() => settle(null), 1500);   /* never let the card hang on the logo */
-  });
+const LOGO_BLACK_SVG = '/*LOGO_SVG_BLACK_JS*/';
+
+/* Cache-once image loaders — srcFn is called lazily on first use. */
+function _mkLoader(srcFn){
+  let cache = null;
+  return () => {
+    if (cache) return Promise.resolve(cache);
+    return new Promise(res => {
+      let done = false; const settle = v => { if(!done){done=true;res(v);} };
+      const img = new Image();
+      img.onload  = () => { cache = img; settle(img); };
+      img.onerror = () => settle(null);
+      img.src = srcFn();
+      setTimeout(() => settle(null), 2500);
+    });
+  };
 }
+/* Read a data-URL from a CSS custom property (value is url("data:…")) */
+function _cssDataUrl(prop){
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue(prop).trim().replace(/^url\(["']?|["']?\)$/g,'');
+}
+/* loadLogo kept for __tt / dev tooling even though drawCard no longer uses it */
+const loadLogo      = _mkLoader(() => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(LOGO_BLACK_SVG));
+const loadTitleArt  = _mkLoader(() => _cssDataUrl('--art'));
+const loadHeroShare = _mkLoader(() => _cssDataUrl('--hero'));
 
 let currentRatio = "story";
 const SIZES = { story:[1080,1920], square:[1080,1080] };
 
-/* Explicit vertical rhythm per ratio — every element has a fixed baseline so
-   nothing can collide regardless of name length or score digits. */
+/* Vertical rhythm for the two share formats (all measurements in canvas px).
+   Comments explain non-obvious choices.
+
+   The title art (1673:998 native) overlaps the top of the green panel so the
+   lockup appears to crown the card rather than float above it.
+
+   The yellow border is drawn with its stroke centred on the rect edge, so the
+   outer edge of the 12px stroke sits at borderX, borderY and the inner edge
+   at borderX+12, borderY+12 — no rounding artefact at the corners. */
 const LAYOUT = {
-  /* story keeps everything between y=200 and y=1760 so Instagram's top and
-     bottom chrome doesn't sit on top of the score or the stats */
-  story: {
-    logoW:300, logoBottom:210,
-    ebPx:30, ebTrack:7, ebY:306,
-    namePx:64, nameMaxW:820, nameY:396,
-    scorePx:380, scoreMaxW:860, scoreY:764,
-    ptPx:34, ptTrack:11, ptY:846,
-    smileY:922, smileW:300, smileLW:20,
-    tierPx:92, tierMaxW:930, tierY:1102,
-    linePx:34, lineMaxW:800, lineY:1182, lineLead:52, lineMax:2,
-    panelY:1330, panelH:250, panelInset:70, panelR:52,
-    statPx:86, statLabelPx:26, statLabelTrack:4,
-    ctaPx:32, ctaY:1672, footPx:24, footTrack:5, footY:1742
+  story:{
+    /* title lockup art */
+    titleW:620, titleY:70,
+    /* green panel (starts 230px below title top → 140px overlap) */
+    panelX:54, panelY:300, panelW:972, panelH:1572, panelR:60,
+    /* yellow border */
+    borderX:40, borderY:286, borderW:1000, borderH:1600, borderR:72, borderLW:12,
+    /* text */
+    ebPx:27, ebTrack:7, ebY:558,
+    namePx:62, nameMaxW:840, nameY:648,
+    scorePx:360, scoreMaxW:860, scoreY:954,
+    ptPx:31, ptTrack:10, ptY:1022,
+    smileY:1090, smileW:270, smileLW:16,
+    tierPx:88, tierMaxW:920, tierY:1256,
+    linePx:30, lineMaxW:800, lineY:1332, lineLead:52, lineMax:2,
+    /* stats panel */
+    spY:1472, spH:232, spInset:60, spR:40,
+    statPx:80, statMaxW:240, statLabelPx:21, statLabelTrack:3,
+    /* footer */
+    ctaPx:26, ctaY:1766,
+    footPx:20, footTrack:5, footY:1824
   },
-  square: {
-    logoW:240, logoBottom:112,
-    ebPx:25, ebTrack:5, ebY:182,
-    namePx:52, nameMaxW:760, nameY:248,
-    scorePx:260, scoreMaxW:800, scoreY:474,
-    ptPx:27, ptTrack:9, ptY:528,
-    smileY:584, smileW:230, smileLW:16,
-    tierPx:64, tierMaxW:900, tierY:702,
+  square:{
+    titleW:490, titleY:28,
+    /* panel bottom = 200+848 = 1048; canvas = 1080; 32px clearance */
+    panelX:50, panelY:200, panelW:980, panelH:848, panelR:56,
+    borderX:36, borderY:186, borderW:1008, borderH:876, borderR:68, borderLW:10,
+    ebPx:22, ebTrack:6, ebY:392,
+    namePx:50, nameMaxW:800, nameY:444,
+    scorePx:260, scoreMaxW:840, scoreY:635,
+    ptPx:25, ptTrack:8, ptY:695,
+    smileY:750, smileW:220, smileLW:14,
+    tierPx:66, tierMaxW:880, tierY:844,
     linePx:0, lineMaxW:0, lineY:0, lineLead:0, lineMax:0,
-    panelY:762, panelH:186, panelInset:60, panelR:42,
-    statPx:64, statLabelPx:21, statLabelTrack:3,
-    ctaPx:26, ctaY:992, footPx:20, footTrack:4, footY:1040
+    spY:876, spH:158, spInset:50, spR:34,
+    statPx:64, statMaxW:200, statLabelPx:17, statLabelTrack:3,
+    ctaPx:0, ctaY:0,
+    footPx:19, footTrack:4, footY:1030
   }
 };
 
@@ -864,8 +1204,6 @@ function rr(ctx,x,y,w,h,r){
   ctx.closePath();
 }
 
-/* letter-spaced, centred on cx. Draws left-aligned so each glyph sits on its
-   own advance box — centring per glyph would smear the spacing. */
 function tracked(ctx, text, cx, y, spacing){
   const chars = [...text];
   let w = -spacing;
@@ -877,7 +1215,6 @@ function tracked(ctx, text, cx, y, spacing){
   ctx.textAlign = prevAlign;
 }
 
-/* sets ctx.font to the largest size at which `text` fits `maxW` */
 function fitText(ctx, text, maxW, startPx, weight){
   let px = startPx;
   while (px > 16){
@@ -905,7 +1242,7 @@ function wrapLines(ctx, text, maxW, maxLines){
 async function drawCard(ratio){
   const r = S.result; if (!r) return;
   await (document.fonts ? document.fonts.ready : Promise.resolve());
-  await loadLogo();
+  const [titleArt, heroImg] = await Promise.all([loadTitleArt(), loadHeroShare()]);
 
   const [W,H] = SIZES[ratio];
   const L = LAYOUT[ratio];
@@ -913,97 +1250,130 @@ async function drawCard(ratio){
   cv.width = W; cv.height = H;
   const ctx = cv.getContext("2d");
   const cx = W/2;
-  const BLACK = "#0A0A0A", GREEN = "#40A829", WHITE = "#FFFFFF";
   const F = (w,px) => w + " " + px + "px SimplyCricket, Arial, sans-serif";
+  const WHITE = "#FFFFFF", YELLOW = "#FFD400";
 
-  /* background — flat green, no gradients */
-  ctx.fillStyle = GREEN; ctx.fillRect(0,0,W,H);
-  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  /* 1 — black base */
+  ctx.fillStyle = "#0A0A0A"; ctx.fillRect(0,0,W,H);
 
-  /* logo lockup */
-  if (logoImg){
-    const lh = L.logoW * (23/101);
-    ctx.drawImage(logoImg, cx - L.logoW/2, L.logoBottom - lh, L.logoW, lh);
+  /* 2 — hero thumb at 18% opacity, cover-scaled, anchored at 44% vertically */
+  if (heroImg){
+    const s = Math.max(W/heroImg.naturalWidth, H/heroImg.naturalHeight);
+    const iw = heroImg.naturalWidth*s, ih = heroImg.naturalHeight*s;
+    const ox = (W-iw)/2, oy = (H-ih)*0.44;
+    ctx.globalAlpha = 0.18;
+    ctx.drawImage(heroImg, ox, oy, iw, ih);
+    ctx.globalAlpha = 1;
   }
 
+  /* 3 — green panel */
+  ctx.fillStyle = "#24720C"; ctx.globalAlpha = 0.92;
+  rr(ctx, L.panelX, L.panelY, L.panelW, L.panelH, L.panelR); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  /* 4 — yellow border (stroke centred on rect edge, half-width inset) */
+  ctx.strokeStyle = YELLOW; ctx.lineWidth = L.borderLW;
+  rr(ctx,
+     L.borderX + L.borderLW/2, L.borderY + L.borderLW/2,
+     L.borderW - L.borderLW,   L.borderH - L.borderLW,
+     L.borderR);
+  ctx.stroke();
+
+  /* 5 — title lockup art, crowning the panel top */
+  if (titleArt){
+    const TAH = Math.round(L.titleW * 998/1673);
+    ctx.drawImage(titleArt, cx - L.titleW/2, L.titleY, L.titleW, TAH);
+  }
+
+  /* 6 — text content (white on green) */
+  ctx.fillStyle = WHITE; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+
   /* eyebrow */
-  ctx.fillStyle = BLACK; ctx.globalAlpha = .7;
-  ctx.font = F("700", L.ebPx);
+  ctx.font = F("700", L.ebPx); ctx.globalAlpha = 0.60;
   tracked(ctx, "THUMB-DISPUTED CHAMPIONSHIP", cx, L.ebY, L.ebTrack);
   ctx.globalAlpha = 1;
 
-  /* name on the belt */
+  /* player name */
   if (r.name){
     fitText(ctx, r.name.toUpperCase(), L.nameMaxW, L.namePx, "900");
-    ctx.fillStyle = BLACK;
+    ctx.fillStyle = WHITE; ctx.globalAlpha = 0.88;
     ctx.fillText(r.name.toUpperCase(), cx, L.nameY);
+    ctx.globalAlpha = 1;
   }
 
   /* score */
-  ctx.fillStyle = BLACK;
+  ctx.fillStyle = WHITE;
   fitText(ctx, r.score.toLocaleString(), L.scoreMaxW, L.scorePx, "900");
   ctx.fillText(r.score.toLocaleString(), cx, L.scoreY);
 
-  ctx.font = F("700", L.ptPx); ctx.globalAlpha = .7;
+  /* POINTS eyebrow */
+  ctx.font = F("700", L.ptPx); ctx.globalAlpha = 0.60;
   tracked(ctx, "POINTS", cx, L.ptY, L.ptTrack);
   ctx.globalAlpha = 1;
 
-  /* the smile */
-  ctx.strokeStyle = BLACK; ctx.lineWidth = L.smileLW; ctx.lineCap = "round";
+  /* smile arc divider */
+  ctx.strokeStyle = WHITE; ctx.lineWidth = L.smileLW;
+  ctx.globalAlpha = 0.30; ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(cx - L.smileW/2, L.smileY - 26);
   ctx.quadraticCurveTo(cx, L.smileY + 66, cx + L.smileW/2, L.smileY - 26);
   ctx.stroke();
+  ctx.globalAlpha = 1;
 
-  /* tier */
+  /* tier name */
+  ctx.fillStyle = WHITE;
   fitText(ctx, r.tier.name, L.tierMaxW, L.tierPx, "900");
-  ctx.fillStyle = BLACK;
   ctx.fillText(r.tier.name, cx, L.tierY);
 
   /* tier flavour line (story only) */
   if (L.lineMax){
-    ctx.font = F("500", L.linePx); ctx.globalAlpha = .8;
+    ctx.font = F("500", L.linePx); ctx.globalAlpha = 0.78;
     wrapLines(ctx, r.tier.line, L.lineMaxW, L.lineMax)
       .forEach((ln,i) => ctx.fillText(ln, cx, L.lineY + i*L.lineLead));
     ctx.globalAlpha = 1;
   }
 
   /* stats panel */
-  const panelX = L.panelInset, panelW = W - L.panelInset*2;
-  ctx.fillStyle = WHITE;
-  rr(ctx, panelX, L.panelY, panelW, L.panelH, L.panelR); ctx.fill();
+  const spX = L.panelX + L.spInset, spW = L.panelW - L.spInset*2;
+  ctx.fillStyle = "rgba(0,0,0,0.28)";
+  rr(ctx, spX, L.spY, spW, L.spH, L.spR); ctx.fill();
 
   const stats = [
     [String(Math.round(r.wpm)), "WPM"],
     [Math.floor(r.acc*100) + "%", "ACCURACY"],
     [fmtTime(r.ms), "TIME"]
   ];
-  const colW = panelW/3;
+  const colW = spW/3;
   stats.forEach((s,i) => {
-    const sx = panelX + colW*i + colW/2;
-    ctx.fillStyle = BLACK;
-    fitText(ctx, s[0], colW - 40, L.statPx, "900");
-    ctx.fillText(s[0], sx, L.panelY + L.panelH*0.54);
-    ctx.fillStyle = "#5A5A5A";
+    const sx = spX + colW*i + colW/2;
+    ctx.fillStyle = WHITE;
+    fitText(ctx, s[0], Math.min(L.statMaxW, colW-32), L.statPx, "900");
+    ctx.fillText(s[0], sx, L.spY + L.spH*0.55);
+    ctx.fillStyle = WHITE; ctx.globalAlpha = 0.55;
     ctx.font = F("700", L.statLabelPx);
-    tracked(ctx, s[1], sx, L.panelY + L.panelH*0.78, L.statLabelTrack);
+    tracked(ctx, s[1], sx, L.spY + L.spH*0.82, L.statLabelTrack);
+    ctx.globalAlpha = 1;
     if (i < 2){
-      ctx.strokeStyle = "#E6E6E6"; ctx.lineWidth = 2; ctx.lineCap = "butt";
+      ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 2; ctx.lineCap = "butt";
       ctx.beginPath();
-      ctx.moveTo(panelX + colW*(i+1), L.panelY + L.panelH*0.18);
-      ctx.lineTo(panelX + colW*(i+1), L.panelY + L.panelH*0.82);
+      ctx.moveTo(spX + colW*(i+1), L.spY + L.spH*0.18);
+      ctx.lineTo(spX + colW*(i+1), L.spY + L.spH*0.82);
       ctx.stroke();
     }
   });
 
   /* footer */
-  ctx.fillStyle = BLACK; ctx.globalAlpha = .8;
-  ctx.font = F("600", L.ctaPx);
-  ctx.fillText("Think you can type faster? Prove it.", cx, L.ctaY);
-  ctx.font = F("700", L.footPx);
+  ctx.fillStyle = WHITE; ctx.textAlign = "center";
+  if (L.ctaPx){
+    ctx.font = F("600", L.ctaPx); ctx.globalAlpha = 0.65;
+    ctx.fillText("Think you can type faster? Prove it.", cx, L.ctaY);
+    ctx.globalAlpha = 1;
+  }
+  ctx.font = F("700", L.footPx); ctx.globalAlpha = 0.48;
   tracked(ctx, "POWERED BY CRICKET 5G", cx, L.footY, L.footTrack);
   ctx.globalAlpha = 1;
 }
+
 
 function caption(){
   const r = S.result;
@@ -1081,8 +1451,54 @@ $("fbBtn").addEventListener("click", () => {
   window.open("https://www.facebook.com/sharer/sharer.php?u=" + u, "_blank", "noopener,width=640,height=640");
 });
 
-/* keyboard: enter starts from the start screen */
+/* ---------- rules overlay ----------
+   The clock is deliberately NOT paused while this is open: reading the rules
+   mid-run shouldn't buy free time. Closing hands focus straight back to the
+   passage so a player can keep typing without hunting for the card. */
+const rulesEl = $("rulesOverlay"), helpBtn = $("helpBtn");
+let rulesLastFocus = null;
+
+function openRules(){
+  rulesLastFocus = document.activeElement;
+  rulesEl.hidden = false;
+  rulesEl.classList.add("on");
+  helpBtn.setAttribute("aria-expanded", "true");
+  helpBtn.classList.add("is-open");
+  $("rulesClose").focus();
+}
+
+function closeRules(){
+  if (!rulesEl.classList.contains("on")) return;
+  rulesEl.classList.remove("on");
+  rulesEl.hidden = true;
+  helpBtn.setAttribute("aria-expanded", "false");
+  helpBtn.classList.remove("is-open");
+  /* back to the passage if the test is up, otherwise to whatever opened it */
+  if ($("test").classList.contains("is-active") && !cap.disabled) cap.focus();
+  else if (rulesLastFocus && rulesLastFocus.isConnected) rulesLastFocus.focus();
+  rulesLastFocus = null;
+}
+
+helpBtn.addEventListener("click", () => {
+  rulesEl.classList.contains("on") ? closeRules() : openRules();
+});
+$("rulesClose").addEventListener("click", closeRules);
+$("rulesGo").addEventListener("click", closeRules);
+rulesEl.addEventListener("mousedown", e => { if (e.target === rulesEl) closeRules(); });
+
+/* keyboard: esc closes the rules; enter starts from the start screen */
 document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && rulesEl.classList.contains("on")){
+    e.preventDefault(); closeRules(); return;
+  }
+  /* trap tab inside the sheet so the passage can't steal focus behind it */
+  if (e.key === "Tab" && rulesEl.classList.contains("on")){
+    const f = rulesEl.querySelectorAll("button");
+    const first = f[0], last = f[f.length-1];
+    if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+    return;
+  }
   if (e.key === "Enter" && $("start").classList.contains("is-active") && document.activeElement !== $("startBtn")){
     e.preventDefault(); startTest();
   }
@@ -1091,6 +1507,15 @@ document.addEventListener("keydown", e => {
 /* ---------- boot ---------- */
 resetTest();
 setScreen("start");
+/* Local visual QA shortcut: ?preview=test or ?preview=share. Kept behind the
+   same DEV_TOOLS flag as the visible skip button. */
+if (DEV_TOOLS){
+  const previewScreen = (location.href.match(/[?&]preview=(test|share)(?:[&#]|$)/) || [])[1];
+  if (previewScreen) requestAnimationFrame(() => {
+    if (previewScreen === "test") startTest();
+    if (previewScreen === "share") devSkip();
+  });
+}
 
 /* test hooks (used by automated verification only) */
 window.__tt = { S, PASSAGE, computeScore, drawCard, startTest, devSkip, setScreen, cap };
