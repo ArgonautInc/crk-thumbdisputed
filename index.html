@@ -85,11 +85,17 @@ button{font-family:inherit}
 
 /* ---------- buttons ---------- */
 .btn{
- font-family:'goodland-variable'; font-weight:400px;
- text-transform:uppercase;
+  /* was `font-family:'goodland-variable'` with no fallback, and
+     `font-weight:400px` - a length is invalid for font-weight, so that
+     declaration was dropped and the `font-weight:600` further down won,
+     leaving the buttons heavier than intended. Now the proper stack (which
+     carries the SimplyCricket fallback) at a valid 400. */
+  font-family:var(--font-body);
+  font-weight:600;
+  text-transform:uppercase;
   display:inline-flex; align-items:center; justify-content:center; gap:10px;
   border:none; cursor:pointer; border-radius:var(--radius-pill);
-  font-weight:600; font-size:17px; letter-spacing:-.01em;
+  font-size:17px; letter-spacing:-.01em;
   padding:16px 34px; min-height:56px;
   transition:background var(--dur,180ms) var(--ease-out), box-shadow 180ms var(--ease-out), transform 140ms var(--ease-out), color 180ms var(--ease-out);
 }
@@ -664,6 +670,31 @@ body.locked{overflow:hidden;height:100dvh}
    for every label and supporting line, all at weight 400 and all uppercase.
    The tight negative tracking below was tuned for SimplyCricket's heavy
    weights; a 400-weight display face needs it relaxed or the glyphs touch. */
+/* Applies to every element set in one of the Adobe variable faces: the whole
+   score card, and the buttons (.btn is goodland too). Deliberately NOT applied
+   to h1,h2,h3 or #start .sub - those are italic on purpose, and because
+   SimplyCricket ships no italic face that italic is *synthesised*, so
+   font-synthesis:none would silently straighten them out.
+
+   Safari slants these Adobe variable faces even though nothing asks for italic.
+   Three separate guards, because the cause can be any of them:
+     font-style              - blocks inheritance. `h1,h2,h3` above are globally
+                               italic and font-style inherits, so any heading
+                               that ever wraps card copy would pass it down.
+     font-synthesis          - stops Safari faking an oblique when it decides
+                               the upright style is unavailable. This is the
+                               one that usually fixes it.
+     font-variation-settings - pins the slant/italic axes to 0 on a variable
+                               font whose default instance may not be upright.
+                               Axes the font doesn't have are ignored, and
+                               unlisted axes still track font-weight, so 400
+                               keeps resolving normally. */
+.scorecard,.scorecard *,.btn{
+  font-style:normal;
+  -webkit-font-synthesis:none;
+  font-synthesis:none;
+  font-variation-settings:'slnt' 0,'ital' 0;
+}
 .tier{font-family:var(--font-body);font-size:11px;font-weight:400;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.60)}
 .bignum{
   font-family:var(--font-display);
@@ -988,7 +1019,7 @@ body.locked{overflow:hidden;height:100dvh}
 /* ---------- dev tools ----------
    Set to false before shipping - that alone hides the "Skip to results"
    button. ?dev=0 on the URL also turns it off without editing the file. */
-const DEV_TOOLS = true;
+const DEV_TOOLS = false;
 
 /* ---------- source copy ---------- */
 const RAW = "Was there ever any doubt that I’d become the next Cricket Thumb-disputed Champion? My thumbs are absolutely gorgeous. They’re expertly manicured, and primed for dishing out painfully fast texts. Frankly, they deserve their own walkout song. When I tap a screen, the competition taps out. And my thumbs aren’t just powerful. They serve looks. They steal the show. They use Cricket 5G to flawlessly fire off messages before my opponents can find the emoji button. The sad truth is, other thumbs lack charisma. They have no sparkle, no presence, no star quality. Meanwhile, every text I send receives a standing ovation. Together, Cricket and I make the perfect tag team. Cricket 5G makes my phone fast, and I make Cricket look fabulous. With Cricket 5G, my thumbs aren’t pretty deadly. They’re just deadly. Think you can type as fast as me? Ha! Don’t make me laugh. I’m a titan, you’re just…toxic. So let's not drag this out. This title belongs with someone who knows how to make an entrance and an impression. The Thumb-disputed Championship? Yes boy. I'll be taking that.";
@@ -1476,7 +1507,9 @@ function tracked(ctx, text, cx, y, spacing){
 function fitText(ctx, text, maxW, startPx, weight, family){
   let px = startPx;
   while (px > 16){
-    ctx.font = weight + " " + px + "px " + (family || CARD_DISPLAY);
+    /* leading "normal" pins the style: canvas has no font-variation-settings,
+       so the shorthand is the only place upright can be stated */
+    ctx.font = "normal " + weight + " " + px + "px " + (family || CARD_DISPLAY);
     if (ctx.measureText(text).width <= maxW) break;
     px -= 4;
   }
@@ -1511,8 +1544,8 @@ async function drawCard(ratio){
   const cx = W/2;
   /* FB = body face (labels, supporting copy), FC = SimplyCricket (footer only).
      The weight argument is gone: the card is uniformly 400. */
-  const FB = px => CARD_WEIGHT + " " + px + "px " + CARD_BODY;
-  const FC = px => CARD_WEIGHT + " " + px + "px " + CARD_CRICKET;
+  const FB = px => "normal " + CARD_WEIGHT + " " + px + "px " + CARD_BODY;
+  const FC = px => "normal " + CARD_WEIGHT + " " + px + "px " + CARD_CRICKET;
   const WHITE = "#FFFFFF";
 
   /* 1 - black base */
