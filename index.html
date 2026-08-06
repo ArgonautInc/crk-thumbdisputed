@@ -66,6 +66,10 @@
   /* Visible viewport height. Overwritten from JS via visualViewport so the
      typing screen can duck the on-screen keyboard; this is the fallback. */
   --vvh:100dvh;
+  /* How far the hero photo sits below the top of the frame. Percentage of the
+     hero layer's own height, so it holds across screen sizes. Reset to 0 on the
+     wide split layout, which frames with background-size:cover instead. */
+  --hero-drop:11%;
   /* WWE x cricket 5G step-and-repeat. Checkerboard tile, 540x324 units. */
   --bd-opacity:.1;
   --bd-tile:clamp(260px,26vw,420px);
@@ -161,6 +165,21 @@ body.locked{overflow:hidden;height:100dvh}
 }
 #start::before{                 content:""; position:absolute; inset:0; z-index:0;
   background:var(--hero) center center / auto 100% no-repeat;
+  /* Portrait framing. The image is sized `auto 100%`, so its height exactly
+     equals the container and background-position-y has no slack to work with --
+     it genuinely does nothing here. Growing background-size to create that slack
+     would crop horizontally at the same rate, and the belt already spans ~18% of
+     the frame against ~26% visible on a phone, so it would start clipping the
+     belt's own edges. Translating the layer instead moves the subject without
+     touching the crop.
+     Measured off hero-16x9.jpg: thumb tip 13% down the frame, belt centre 37.5%.
+     Simulated against a 393x852 phone: 14% centres the belt exactly in the gap
+     between the lockup and the sub copy, but crowds the thumb tip against the
+     cricket/WWE bar. 11% reads better and hides its own seam -- the top strip
+     falls where the scrim is ~90% opaque, so the edge where the photo begins is
+     a 6/255 luminance step. At 8% that step is 26/255 and visible.
+     Tune this one value; nothing else needs to change. */
+  transform:translateY(var(--hero-drop));
 }
 #start::after{                  content:""; position:absolute; inset:0; z-index:1; pointer-events:none;
   background:linear-gradient(to bottom,
@@ -218,6 +237,9 @@ body.locked{overflow:hidden;height:100dvh}
 }
 
 @media (min-width:900px) and (min-aspect-ratio:1/1){
+  /* The wide layout puts the photo in a right-hand band and frames it with
+     cover + center 44%, which already has vertical slack. No translate wanted. */
+  :root{--hero-drop:0%}
   #start{
     grid-template-columns:minmax(0,.86fr) minmax(0,1fr);
     grid-template-rows:auto auto;
