@@ -70,6 +70,9 @@
      hero layer's own height, so it holds across screen sizes. Reset to 0 on the
      wide split layout, which frames with background-size:cover instead. */
   --hero-drop:11%;
+  /* How far the photo's own top edge dissolves into the background. Percentage
+     of the hero layer's height, so it travels with --hero-drop. */
+  --hero-fade:13%;
   /* WWE x cricket 5G step-and-repeat. Checkerboard tile, 540x324 units. */
   --bd-opacity:.1;
   --bd-tile:clamp(260px,26vw,420px);
@@ -180,6 +183,20 @@ body.locked{overflow:hidden;height:100dvh}
      a 6/255 luminance step. At 8% that step is 26/255 and visible.
      Tune this one value; nothing else needs to change. */
   transform:translateY(var(--hero-drop));
+  /* Dissolve both edges of the photo rather than painting gradients over them.
+     A mask is anchored to the layer, so it follows --hero-drop automatically --
+     an overlay would have to be repositioned by hand every time that changed,
+     and would drift the moment it didn't. transparent -> #000 is an alpha ramp:
+     the image simply isn't there at the edges and arrives over --hero-fade.
+     Note the bottom is already carried most of the way by the ::after scrim
+     (.90 black by 82%), so its fade mainly guards against --hero-drop being
+     retuned later and exposing that edge. */
+  -webkit-mask-image:linear-gradient(to bottom,
+    transparent 0, #000 var(--hero-fade),
+    #000 calc(100% - var(--hero-fade)), transparent 100%);
+          mask-image:linear-gradient(to bottom,
+    transparent 0, #000 var(--hero-fade),
+    #000 calc(100% - var(--hero-fade)), transparent 100%);
 }
 #start::after{                  content:""; position:absolute; inset:0; z-index:1; pointer-events:none;
   background:linear-gradient(to bottom,
@@ -239,7 +256,9 @@ body.locked{overflow:hidden;height:100dvh}
 @media (min-width:900px) and (min-aspect-ratio:1/1){
   /* The wide layout puts the photo in a right-hand band and frames it with
      cover + center 44%, which already has vertical slack. No translate wanted. */
-  :root{--hero-drop:0%}
+  /* cover fills the band edge to edge, so there is no exposed border to hide
+     and nothing to fade. */
+  :root{--hero-drop:0%; --hero-fade:0%}
   #start{
     grid-template-columns:minmax(0,.86fr) minmax(0,1fr);
     grid-template-rows:auto auto;
