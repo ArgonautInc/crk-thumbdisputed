@@ -6,18 +6,18 @@
 <title>Cricket Thumb-disputed Championship</title>
 <meta name="description" content="Think you can type as fast as me? Take the Cricket Thumb-disputed Championship typing test.">
 
-<!-- Social + canonical. https://thumbdisputed.cricketwireless.com / https://thumbdisputed.cricketwireless.com/ / https://thumbdisputed.cricketwireless.com/assets/og-card.c42126eeaf.jpg are rewritten by
+<!-- Social + canonical. https://REPLACE-ME.example.com / https://REPLACE-ME.example.com/ / https://REPLACE-ME.example.com/assets/og-card.c42126eeaf.jpg are rewritten by
      build.py to absolute URLs -- scrapers cannot resolve relative paths, so
      these must be fully qualified in the deployed file. -->
-<link rel="canonical" href="https://thumbdisputed.cricketwireless.com/">
+<link rel="canonical" href="https://REPLACE-ME.example.com/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Cricket Thumb-disputed Championship">
 <meta property="og:locale" content="en_US">
-<meta property="og:url" content="https://thumbdisputed.cricketwireless.com/">
+<meta property="og:url" content="https://REPLACE-ME.example.com/">
 <meta property="og:title" content="The Thumb-disputed Championship">
 <meta property="og:description" content="Sixty seconds. One speech. One champion. Take on a WWE Superstar and find out if your thumbs can take the belt.">
-<meta property="og:image" content="https://thumbdisputed.cricketwireless.com/assets/og-card.c42126eeaf.jpg">
-<meta property="og:image:secure_url" content="https://thumbdisputed.cricketwireless.com/assets/og-card.c42126eeaf.jpg">
+<meta property="og:image" content="https://REPLACE-ME.example.com/assets/og-card.c42126eeaf.jpg">
+<meta property="og:image:secure_url" content="https://REPLACE-ME.example.com/assets/og-card.c42126eeaf.jpg">
 <meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -25,7 +25,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="The Thumb-disputed Championship">
 <meta name="twitter:description" content="Sixty seconds. One speech. One champion. Take on a WWE Superstar and find out if your thumbs can take the belt.">
-<meta name="twitter:image" content="https://thumbdisputed.cricketwireless.com/assets/og-card.c42126eeaf.jpg">
+<meta name="twitter:image" content="https://REPLACE-ME.example.com/assets/og-card.c42126eeaf.jpg">
 <meta name="twitter:image:alt" content="The Thumb-disputed Championship, from cricket and WWE.">
 
 <!-- Cricket mark, inlined like every other asset here so the page stays a
@@ -1185,7 +1185,7 @@ body.locked{overflow:hidden;height:100dvh}
     <h2 id="rulesTitle">Three rules. That's it.</h2>
     <ul>
       <li><b>1</b><span>You've got 60 seconds. The clock starts on your first keystroke, not before.</span></li>
-      <li><b>2</b><span>Backspace to fix a slip, but every miss still counts against your accuracy.</span></li>
+      <li><b>2</b><span>Space jumps to the next word &mdash; the letters you skip count as missed, and backspace won't undo them.</span></li>
       <li><b>3</b><span>Buzzer hits or you finish the speech, whichever comes first. That's your score.</span></li>
     </ul>
     <button class="btn btn--primary" id="rulesGo">Got it</button>
@@ -1636,10 +1636,45 @@ function keepInView(pos){
   pad.scrollTop = Math.max(0, target);
 }
 
+
+/* Space jumps to the next word.
+
+   Driven from the input event rather than keydown: iOS and Android virtual
+   keyboards report keydown as "Unidentified"/keyCode 229 for most keys, so a
+   keydown handler would silently do nothing on the platform this is built for.
+
+   The passage is compared positionally, so "skipping" means filling the rest of
+   the current word with characters that cannot match it. A space can never
+   equal a letter, and every position from the caret to the next whitespace is
+   non-whitespace by construction, so padding with spaces marks exactly the
+   letters the typist bailed on -- no more, no less. The real separator is then
+   appended so the caret lands cleanly on the next word.
+
+   Useful side effect: an extra keystroke used to desync the rest of the
+   passage permanently. Space now re-anchors to a word boundary. */
+function applySpaceSkip(v){
+  const i = v.length - 1;
+  if (i < 0 || i >= PASSAGE.length) return v;
+  if (v[i] !== " ") return v;                 // only a space triggers a skip
+  if (/\s/.test(PASSAGE[i])) return v;        // passage wants a separator here anyway
+  let end = i;
+  while (end < PASSAGE.length && !/\s/.test(PASSAGE[end])) end++;
+  return v.slice(0, i) + " ".repeat(end - i)
+       + (end < PASSAGE.length ? PASSAGE[end] : "");
+}
+
 cap.addEventListener("input", () => {
   if (S.result) return;
   let v = cap.value;
   if (v.length > PASSAGE.length){ v = v.slice(0, PASSAGE.length); cap.value = v; }
+
+  const skipped = applySpaceSkip(v);
+  if (skipped !== v){
+    v = skipped.slice(0, PASSAGE.length);
+    cap.value = v;
+    cap.setSelectionRange(v.length, v.length);   // keep the caret at the end
+  }
+
   if (!S.started && v.length > 0) beginClock();
 
   for (let i = S.lastLen; i < v.length; i++){
