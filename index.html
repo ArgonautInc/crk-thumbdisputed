@@ -2227,17 +2227,48 @@ $("dlBtn").addEventListener("click", async () => {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   toast("Image saved");
+  if (typeof gtag === "function") {
+    gtag("event", "share_card_download", {
+      method: "download",
+      ratio: currentRatio,
+      superstar: selStar || "unknown"
+    });
+  }
 });
 
 $("shareBtn").addEventListener("click", async () => {
   const blob = await canvasBlob();
   const file = new File([blob], fileName(), {type:"image/png"});
   if (navigator.canShare && navigator.canShare({files:[file]})){
-    try { await navigator.share({files:[file], text:caption()}); }
+    try { await navigator.share({files:[file], text:caption()}); 
+      if (typeof gtag === "function") {
+        gtag("event", "share_card_download", {
+          method: "native_share",
+          ratio: currentRatio,
+          superstar: selStar || "unknown"
+        });
+      }
+  
+    }
     catch {}
   } else {
     $("dlBtn").click();
     toast("Saved. Now post it from your app.");
+    if (typeof gtag === "function") {
+      gtag("event", "share_card_download", {
+        method: "download",
+        ratio: currentRatio,
+        superstar: selStar || "unknown"
+      });
+    }
+  }
+
+  if (typeof gtag === "function") {
+    gtag("event", "share_card_download", {
+      method: "download",
+      ratio: currentRatio,
+      superstar: selStar || "unknown"
+    });
   }
 });
 
