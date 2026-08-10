@@ -1191,7 +1191,7 @@ body.locked{overflow:hidden;height:100dvh}
         </div>
         </div>
         <div class="sc-cta">
-          <a href="https://sponsorships.cricketwireless.com/wwe/?utm_content=Thumbdisputed" target="_blank" rel="noopener">Find out more about Cricket and WWE's partnership</a>
+          <a id="ctaLink" href="https://sponsorships.cricketwireless.com/wwe/?utm_content=Thumbdisputed" target="_blank" rel="noopener">Find out more about Cricket and WWE's partnership</a>
         </div></div>
       <div class="retrybar" style="margin-top:24px">
         <button class="btn btn--primary" id="againBtn">Run it back</button>
@@ -1511,6 +1511,12 @@ function pickStar(id){
   selLang = star.languages[0];   // default to the first listed language
   renderLangs();
   syncSelectUI();
+  if (typeof gtag === "function") {
+    gtag("event", "superstar_selected", {
+      superstar: id,
+      language: selLang
+    });
+  }
 }
 
 function pickLang(code){
@@ -1807,6 +1813,18 @@ function completeTest(finishedAt, sting){
   cap.disabled = true;
   const r = computeScore();
   S.result = r;
+
+  if (typeof gtag === "function") {
+    gtag("event", "game_completed", {
+      superstar: selStar || "unknown",
+      language: selLang || "unknown",
+      score: r.score,
+      wpm: Math.round(r.wpm),
+      accuracy: Math.floor(r.acc * 100),
+      tier: r.tier.name
+    });
+  }
+  
   if (sting) playTimeUp(() => showResults(r));
   else showResults(r);
 }
@@ -2275,6 +2293,16 @@ $("shareBtn").addEventListener("click", async () => {
 $("capBtn").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(caption()); toast("Caption copied"); }
   catch { toast("Couldn't copy. Select it manually."); }
+});
+
+$("ctaLink").addEventListener("click", () => {
+  if (typeof gtag === "function") {
+    gtag("event", "cta_click", {
+      superstar: selStar || "unknown",
+      score: S.result?.score ?? 0,
+      tier: S.result?.tier?.name ?? "unknown"
+    });
+  }
 });
 
 const rulesEl = $("rulesOverlay"), helpBtn = $("helpBtn");
